@@ -1,15 +1,21 @@
 
 use std::path::PathBuf;
-use windows::core::{ComInterface, PCSTR, PCWSTR, w};
+use windows::core::{ComInterface, PCSTR, w};
 use windows::Win32::Data::Xml::XmlLite::{CreateXmlReader, IXmlReader, XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit, XmlNodeType_None, XmlNodeType_Element, XmlNodeType_Attribute, XmlNodeType_Text, XmlNodeType_EndElement};
+use windows::Win32::Foundation::S_OK;
 use windows::Win32::System::Com::STGM_READ;
 use windows::Win32::UI::Shell::SHCreateStreamOnFileA;
 
 const PROFILE_SIZE: usize = 1024;
 // Decode xml input
-pub fn decode_xml(xml_input: &str) -> String {
-    let decoded_xml = xml_input.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;","'").replace("&amp;","&");
-    decoded_xml
+pub fn decode_xml(xml_input: String) -> String {
+    xml_input
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;","&")
+        .replace("&apos;","'")
+        .replace("&quot;", "\"")
+
 }
 /// Encode xml input
 pub fn encode_xml(xml_input: &str) -> String {
@@ -133,7 +139,7 @@ pub unsafe fn load_rotations_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
 
     // Loop through all nodes
     let mut node_type = XmlNodeType_None;
-    while xml_text_reader.Read(Some(&mut node_type)).is_ok()
+    while xml_text_reader.Read(Some(&mut node_type)).0 == S_OK.0
     {
         match node_type {
             XmlNodeType_Element => {
@@ -163,13 +169,13 @@ pub unsafe fn load_rotations_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
                 if element_value.to_string().unwrap() == "Rotation" && !rotation_name.to_string().unwrap().is_empty() && !rotation_default.to_string().unwrap().is_empty() {
                     for i in 0..PROFILE_SIZE {
                         if return_vec[i][0].is_empty() {
-                            return_vec[i][0] = decode_xml(rotation_name.to_string().unwrap().as_str()) + " (SNPSubt)";
-                            return_vec[i][1] = decode_xml(rotation_default.to_string().unwrap().as_str());
-                            return_vec[i][2] = decode_xml(rotation_list.to_string().unwrap().as_str());
+                            return_vec[i][0] = decode_xml(rotation_name.to_string().unwrap()) + " (SNPSubt)";
+                            return_vec[i][1] = decode_xml(rotation_default.to_string().unwrap());
+                            return_vec[i][2] = decode_xml(rotation_list.to_string().unwrap());
                             return_vec[i][2] = return_vec[i][2].replace("|", " (SNPSubt)|");
                             return_vec[i][2] = return_vec[i][2].clone() + " (SNPSubt)";
-                            return_vec[i][3] = decode_xml(require_combat.to_string().unwrap().as_str());
-                            return_vec[i][4] = decode_xml(rotation_notes.to_string().unwrap().as_str());
+                            return_vec[i][3] = decode_xml(require_combat.to_string().unwrap());
+                            return_vec[i][4] = decode_xml(rotation_notes.to_string().unwrap());
                             rotation_name = w!("");
                             rotation_list = w!("");
                             rotation_default = w!("");
@@ -190,7 +196,6 @@ pub unsafe fn load_rotations_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
 pub unsafe fn load_abilities_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
     let mut return_vec: Vec<Vec<String>> = vec![vec![String::default(); 10]; PROFILE_SIZE];
     let mut xml_text_reader: Option<IXmlReader> = None;
-
     // Initialise our xml file
     let str_path = PCSTR::from_raw(xml_file.to_str().unwrap().as_bytes().as_ptr());
     let file_stream = SHCreateStreamOnFileA(
@@ -206,112 +211,104 @@ pub unsafe fn load_abilities_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
     let xml_text_reader = xml_text_reader.unwrap();
     xml_text_reader.SetProperty(XmlReaderProperty_DtdProcessing.0 as _, DtdProcessing_Prohibit.0 as _).unwrap();
     xml_text_reader.SetInput(&file_stream).unwrap();
-
     // Store reads
-    let mut element_string = w!("");
-    let mut element_value = w!("");
+    let mut w_element_string = w!("");
+    let mut element_string= String::default();
+    let mut w_element_string_len = 0;
+    let mut w_element_value = w!("");
+    let mut element_value = String::default();
+    let mut w_element_value_len = 0;
     // Store xml input strings
-    let mut ability_name = w!("");
-    let mut ability_default = w!("");
-    let mut ability_spellid = w!("");
-    let mut ability_actions = w!("");
-    let mut ability_lua = w!("");
-    let mut ability_lua_before = w!("");
-    let mut ability_lua_after = w!("");
-    let mut ability_recast_delay = w!("");
-    let mut ability_self_cast = w!("");
-    let mut ability_target = w!("target");
-    let mut ability_cancel_channel = w!("false");
+    let mut ability_name = String::default();
+    let mut ability_default = String::default();
+    let mut ability_spellid = String::default();
+    let mut ability_actions = String::default();
+    let mut ability_lua = String::default();
+    let mut ability_lua_before = String::default();
+    let mut ability_lua_after = String::default();
+    let mut ability_recast_delay = String::default();
+    let mut ability_self_cast = "Target".to_string();
+    let mut ability_cancel_channel = "False".to_string();
 
     // Loop through all nodes
     let mut node_type = XmlNodeType_None;
-    while xml_text_reader.Read(Some(&mut node_type)).is_ok()
+    while xml_text_reader.Read(Some(&mut node_type)).0 == S_OK.0
     {
         match node_type {
             XmlNodeType_Element => {
-                xml_text_reader.GetLocalName(&mut element_string, None).unwrap();
+                xml_text_reader.GetLocalName(&mut w_element_string, Some(&mut w_element_string_len)).unwrap();
+                element_string = String::from_utf16_lossy(std::slice::from_raw_parts(w_element_string.0, w_element_string_len as usize));
             },
             XmlNodeType_Attribute => { },
             XmlNodeType_Text => {
-                xml_text_reader.GetValue(&mut element_value, None).unwrap();
-                if element_string.to_string().unwrap() == "Name".to_string() {
-                    ability_name = element_value;
-                }
-                else if element_string.to_string().unwrap() == "Default".to_string() {
-                    ability_default = element_value;
-                }
-                else if element_string.to_string().unwrap() == "SpellID".to_string() {
-                    ability_spellid = element_value;
-                }
-                else if element_string.to_string().unwrap() == "Actions".to_string() {
-                    ability_actions = element_value;
-                }
-                else if element_string.to_string().unwrap() == "Lua".to_string() {
-                    ability_lua = element_value;
-                }
-                else if element_string.to_string().unwrap() == "LuaBefore".to_string() {
-                    ability_lua_before = element_value;
-                }
-                else if element_string.to_string().unwrap() == "LuaAfter".to_string() {
-                    ability_lua_after = element_value;
-                }
-                else if element_string.to_string().unwrap() == "RecastDelay".to_string() {
-                    ability_recast_delay = element_value;
-                }
-                else if element_string.to_string().unwrap() == "SelfCast".to_string() {
-                    ability_self_cast = element_value;
-                    if ability_self_cast.to_string().unwrap() == "True".to_string() {
-                        ability_self_cast = w!("player");
-                    }
-                    else {
-                        ability_self_cast = w!("target");
-                    }
-                }
-                else if element_string.to_string().unwrap() == "Target".to_string() {
-                    ability_target = element_value;
-                }
-                else if element_string.to_string().unwrap() == "CancelChannel".to_string() {
-                    ability_cancel_channel = element_value;
-                }
+                xml_text_reader.GetValue(&mut w_element_value, Some(&mut w_element_value_len)).unwrap();
+                element_value = String::from_utf16_lossy(std::slice::from_raw_parts(w_element_value.0, w_element_value_len as usize));
+                match element_string.to_string().as_str() {
+                    "Name" => ability_name = element_value,
+                    "Default" => ability_default = element_value,
+                    "SpellID" => ability_spellid = element_value,
+                    "Actions" => ability_actions = element_value,
+                    "Lua" => ability_lua = element_value,
+                    "LuaBefore" => ability_lua_before = element_value,
+                    "LuaAfter" => ability_lua_after = element_value,
+                    "RecastDelay" => ability_recast_delay = element_value,
+                    "SelfCast" => {
+                        ability_self_cast = element_value;
+                        if ability_self_cast.to_string() == "True".to_string() {
+                            ability_self_cast = "player".to_string();
+                        }
+                        else {
+                            ability_self_cast = "target".to_string();
+                        }
+                    },
+                    "Target" => ability_self_cast = element_value,
+                    "CancelChannel" => ability_cancel_channel = element_value,
+                    _ => {}
+                };
             },
             XmlNodeType_EndElement => {
-                xml_text_reader.GetLocalName(&mut element_value, None).unwrap();
-                if element_value.to_string().unwrap() == "Ability".to_string() && !ability_default.to_string().unwrap().is_empty() && !ability_spellid.to_string().unwrap().is_empty() && !ability_lua.to_string().unwrap().is_empty() {
+                xml_text_reader.GetLocalName(&mut w_element_value, Some(&mut w_element_value_len)).unwrap();
+                element_value = String::from_utf16_lossy(std::slice::from_raw_parts(w_element_value.0, w_element_value_len as usize));
+                if element_value == "Ability".to_string() &&
+                    !ability_name.is_empty() &&
+                    !ability_default.is_empty() &&
+                    !ability_spellid.is_empty() &&
+                    !ability_lua.is_empty() {
                     for i in 0..PROFILE_SIZE {
                         if return_vec[i][0].is_empty() {
-                            return_vec[i][0] = decode_xml(ability_name.to_string().unwrap().as_str()) + " (SNPSubt)";
-                            return_vec[i][1] = decode_xml(ability_default.to_string().unwrap().as_str());
-                            return_vec[i][2] = decode_xml(ability_spellid.to_string().unwrap().as_str());
-                            return_vec[i][3] = decode_xml(ability_actions.to_string().unwrap().as_str());
-                            return_vec[i][4] = decode_xml(ability_lua.to_string().unwrap().as_str());
-                            return_vec[i][5] = decode_xml(ability_recast_delay.to_string().unwrap().as_str());
-                            return_vec[i][6] = decode_xml(ability_self_cast.to_string().unwrap().to_lowercase().as_str());
-                            return_vec[i][7] = decode_xml(ability_cancel_channel.to_string().unwrap().to_lowercase().as_str());
-                            return_vec[i][8] = decode_xml(ability_lua_before.to_string().unwrap().as_str());
-                            return_vec[i][9] = decode_xml(ability_lua_after.to_string().unwrap().as_str());
-                            ability_name = w!("");
-                            ability_default = w!("");
-                            ability_spellid = w!("");
-                            ability_actions = w!("");
-                            ability_lua = w!("");
-                            ability_recast_delay = w!("0");
-                            ability_self_cast = w!("target");
-                            ability_cancel_channel = w!("false");
+                            return_vec[i][0] = decode_xml(ability_name) + " (SNPSubt)";
+                            return_vec[i][1] = decode_xml(ability_default);
+                            return_vec[i][2] = decode_xml(ability_spellid);
+                            return_vec[i][3] = decode_xml(ability_actions);
+                            return_vec[i][4] = decode_xml(ability_lua);
+                            return_vec[i][5] = decode_xml(ability_recast_delay);
+                            return_vec[i][6] = decode_xml(ability_self_cast.to_lowercase());
+                            return_vec[i][7] = decode_xml(ability_cancel_channel.to_lowercase());
+                            return_vec[i][8] = decode_xml(ability_lua_before.to_string());
+                            return_vec[i][9] = decode_xml(ability_lua_after.to_string());
+                            ability_name = String::default();
+                            ability_default = String::default();
+                            ability_spellid = String::default();
+                            ability_actions = String::default();
+                            ability_lua = String::default();
+                            ability_recast_delay = "0".to_string();
+                            ability_self_cast = "Target".to_string();
+                            ability_cancel_channel = "False".to_string();
                             break;
                         }
                     }
                 }
             },
-            other => { if node_type.0 == 0 { break } }
+            _ => { }
         }
     }
     return_vec
 }
-/// Extract abilities from rotation file
-pub fn extract_abilities_from_rotation(player_rotation: Vec<String>) -> Vec<String> {
-    player_rotation[2]
-        .as_str()
-        .split("|")
-        .map(|s| s.to_string())
-        .collect()
+/// Extract the lua function from an ability passed in
+pub fn extract_lua_from_ability(player_rotation: Vec<String>) -> String {
+    player_rotation.get(4).unwrap().to_string()
+}
+/// Extract the ability name from ability file
+pub fn extract_abilities_name_from_rotation(player_rotation: Vec<String>) -> String {
+    player_rotation.get(0).unwrap().to_string()
 }

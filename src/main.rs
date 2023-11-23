@@ -19,7 +19,7 @@ use crate::profiles::abilities_tab::AbilitiesEnum;
 use crate::profiles::profiles_lib::Profiles;
 use crate::profiles::profiles_tab::ProfilesEnum;
 use crate::wow::wow_hook::WowCheats;
-use crate::xml_library::xml_handler::{extract_abilities_from_rotation, load_abilities_from_xml, load_rotations_from_xml};
+use crate::xml_library::xml_handler::{extract_abilities_name_from_rotation, extract_lua_from_ability, load_abilities_from_xml};
 
 fn main() {
     let wow_process = unsafe { Process::find("Wow.exe") };
@@ -38,29 +38,23 @@ fn main() {
 
     let profiles_test = Profiles::new(PathBuf::from(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles"));
 
-    let profile_rot = unsafe { load_abilities_from_xml(PathBuf::from(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles\Rogue sub pvp\79 Subt_ROGUE_Abilities.xml")) };
-    profile_rot.iter().for_each(|s| {
-        s.iter().for_each(|str| {
-            if !str.is_empty() {
-                println!("{str}");
-            }
-        });
-    });
-
     let mut my_profile_enum = ProfilesEnum::Title("default".to_string());
     let mut stored_current_profile_name = "default".to_string();
     let mut my_abilities_enum = AbilitiesEnum::Title("default".to_string());
-    let mut last_stored_rotation = vec![];
+    let mut last_stored_ability_list = vec![];
 
     let menu_options = eframe::NativeOptions {
-        initial_window_size: Some(Vec2::new(380.0, 330.0)),
+        initial_window_size: Some(Vec2::new(600.0, 330.0)),
         maximized: false,
         resizable: false,
         ..Default::default()
     };
     let mut test_str = String::from("");
     let _ = eframe::run_simple_native("World of Warcraft Executor", menu_options, move |ctx, frame | {
-        egui::SidePanel::left("Profiles panel").max_width(140.).resizable(false).show(ctx, |ui| {
+        egui::SidePanel::left("Profiles panel")
+            .max_width(140.)
+            .resizable(false)
+            .show(ctx, |ui| {
             ui.heading("Profiles");
             egui::ScrollArea::vertical()
                 .id_source("scroll_profiles")
@@ -74,7 +68,7 @@ fn main() {
                         if ui.add_sized([ui.available_width(), 0.], egui::SelectableLabel::new(my_profile_enum == current_enum, current_profile_name.clone())).clicked() {
                             stored_current_profile_name = current_profile_name.clone();
                             my_profile_enum = current_enum;
-                            last_stored_rotation = vec![];
+                            last_stored_ability_list = vec![];
                         }
                     });
             });
@@ -88,44 +82,74 @@ fn main() {
                 .max_height(110.)
                 .show(ui, |ui| unsafe {
                     if stored_current_profile_name != "default".to_string() {
-                        if last_stored_rotation.is_empty() {
-                            last_stored_rotation = load_rotations_from_xml(PathBuf::from(format!(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles\{stored_current_profile_name}\79 Subt_ROGUE_Rotations.xml")));
-                        }let first_rotation = last_stored_rotation.index(0);
-                        extract_abilities_from_rotation(first_rotation.clone()).iter().for_each(|ability| {
-                            let current_ability = ability.clone();
-                            let current_enum = AbilitiesEnum::Title(current_ability.clone());
-                            if ui.add_sized([ui.available_width(), 0.], egui::SelectableLabel::new(my_abilities_enum == current_enum, current_ability)).clicked() {
-                                my_abilities_enum = current_enum;
+                        if last_stored_ability_list.is_empty() {
+                            last_stored_ability_list = load_abilities_from_xml(PathBuf::from(format!(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles\{stored_current_profile_name}\79 Subt_ROGUE_Abilities.xml")));
+                        }
+                        last_stored_ability_list.iter().for_each(|ability| {
+                            let ability_name = extract_abilities_name_from_rotation(ability.clone());
+                            if !ability_name.clone().is_empty() {
+                                let ability_lua = extract_lua_from_ability(ability.clone());
+                                let current_enum = AbilitiesEnum::Title(ability_name.clone());
+                                if ui.add_sized([ui.available_width(), 0.], egui::SelectableLabel::new(my_abilities_enum == current_enum, ability_name)).clicked() {
+                                    test_str = ability_lua;
+                                    my_abilities_enum = current_enum;
+                                }
                             }
-                        });
+                        })
                     }
-
                 });
         });
+        egui::TopBottomPanel::bottom("Options panel")
+            .default_height(140.)
+            .max_height(140.)
+            //.resizable(false)
+            .show(ctx, |ui| {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+                    ui.add_space(7.);
+                    //ui.button("Save changes");
+                    ui.button("Run Profile");
+                    ui.add_space(7.);
+                });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx());
-            let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
-                let mut layout_job =
-                    egui_extras::syntax_highlighting::highlight(ui.ctx(), &theme, string, "lua".into());
-                layout_job.wrap.max_width = wrap_width;
-                ui.fonts(|f| f.layout_job(layout_job))
-            };
-            ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
-                ui.add (
-                    egui::TextEdit::multiline(&mut test_str)
-                        .font(egui::TextStyle::Monospace)
-                        .code_editor()
-                        .desired_rows(20)
-                        .lock_focus(true)
-                        .desired_width(f32::INFINITY)
-                        .layouter(&mut layouter),
-                );
-                ui.add_space(7.0);
-                if ui.button("Execute").clicked() && !test_str.is_empty() {
-                    unsafe { wow_cheat.second_run_string(test_str.as_mut_str()) }
-                }
             });
+        egui::CentralPanel::default()
+            .show(ctx, |ui| {
+                ui.set_height(190.);
+                let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx());
+                let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
+                    let mut layout_job =
+                        egui_extras::syntax_highlighting::highlight(ui.ctx(), &theme, string, "lua".into());
+                    layout_job.wrap.max_width = wrap_width;
+                    ui.fonts(|f| f.layout_job(layout_job))
+                };
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+                    egui::Window::new("Script Viewer")
+                        .constraint_to(ctx.available_rect())
+                        .default_size(ui.available_size())
+                        //.default_width(300.)
+                        //.default_height(180.)
+                        .hscroll(true)
+                        .movable(true)
+                        .open(&mut true)
+                        .resizable(true)
+                        .title_bar(true)
+                        .vscroll(true)
+                        .show(ctx, |ui| {
+                            ui.add (egui::TextEdit::multiline(&mut test_str)
+                                        .font(egui::TextStyle::Monospace)
+                                        .code_editor()
+                                        .desired_rows(20)
+                                        .lock_focus(true)
+                                        .desired_width(f32::INFINITY)
+                                        .layouter(&mut layouter),
+                            );
+                            ui.set_max_height(30.);
+                        });
+                    //ui.add_space(7.0);
+                    //if ui.button("Execute").clicked() && !test_str.is_empty() {
+                    //    unsafe { wow_cheat.second_run_string(test_str.as_mut_str()) }
+                    //}
+                });
         });
     });
 
