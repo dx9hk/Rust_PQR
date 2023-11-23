@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Profile {
     // Name of the profile
     profile_name: String,
@@ -12,6 +13,18 @@ pub struct Profile {
 }
 
 impl Profile {
+    pub fn get_profile_name(&self) -> String { self.profile_name.clone() }
+    pub fn get_profile_path(&self) -> PathBuf { self.profile_path.clone() }
+    pub fn get_rotation_path(&self) -> PathBuf { self.rotation_path.clone() }
+    pub fn get_abilities_path(&self) -> PathBuf { self.abilities_path.clone() }
+    pub fn default() -> Self {
+        Self {
+            profile_name: String::default(),
+            profile_path: PathBuf::default(),
+            rotation_path: PathBuf::default(),
+            abilities_path: PathBuf::default()
+        }
+    }
     pub fn new(profile_path: PathBuf) -> Self {
         // Do basic dir checks
         if !profile_path.is_dir() {
@@ -21,42 +34,30 @@ impl Profile {
         let mut profile_name = "".to_string();
         let mut rotation_path = PathBuf::default();
         let mut abilities_path = PathBuf::default();
-        // Get rotation and abilities file
+        // Loop through files within child directory
         profile_path
             .read_dir()
             .unwrap()
             .for_each(|child_dir| {
-            // Check if file is a directory
-            if child_dir.unwrap().file_type().unwrap().is_dir() {
-                // Loop through files within child directory
-                let path_child_dir = PathBuf::from(child_dir.unwrap().path());
-                path_child_dir
-                    .read_dir()
-                    .unwrap()
-                    .for_each(|child_dir| {
-                        // Find and extract relevant information
-                        if profile_name.is_empty() {
-                            profile_name = String::from(path_child_dir.file_name().unwrap().to_str().unwrap());
-                        }
-                        // Check if child directory has rotation or abilities in the name
-                        if child_dir.unwrap().path().to_str().unwrap().contains("Abilities") {
-                            abilities_path = child_dir.unwrap().path();
-                        }
-                        else if child_dir.unwrap().path().to_str().unwrap().contains("Rotations") {
-                            rotation_path = child_dir.unwrap().path();
-                        }
-                });
-
-
-
-            }
-        });
-        // Get profile name from folder name
+                let curr_dir = child_dir.unwrap().path();
+                // Find and extract relevant information
+                if profile_name.is_empty() {
+                    profile_name = String::from(profile_path.file_name().unwrap().to_str().unwrap());
+                }
+                // Check if child directory has rotation or abilities in the name
+                if curr_dir.to_str().unwrap().contains("Abilities") {
+                    abilities_path = curr_dir;
+                }
+                else if curr_dir.to_str().unwrap().contains("Rotations") {
+                    rotation_path = curr_dir;
+                }
+            });
+        // Ready constructor for return
         Self {
-            profile_name: "".to_string(),
+            profile_name,
             profile_path,
-            rotation_path: Default::default(),
-            abilities_path: Default::default(),
+            rotation_path,
+            abilities_path,
         }
     }
 }

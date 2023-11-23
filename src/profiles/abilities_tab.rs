@@ -1,9 +1,4 @@
-
 #[derive(PartialEq, Clone)]
-pub enum ProfilesEnum {
+pub enum AbilitiesEnum {
     Title(String)
 }
-
-
-
-
