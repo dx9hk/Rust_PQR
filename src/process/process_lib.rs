@@ -10,7 +10,7 @@ use windows::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
 use crate::process::module::ModuleInfo;
 use crate::process::threads::ProcessThreads;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Process {
     process_handle: HANDLE,
     process_id: u32,

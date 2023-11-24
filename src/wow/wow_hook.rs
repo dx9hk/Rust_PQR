@@ -2,7 +2,7 @@ use dynasmrt::dynasm;
 use dynasmrt::DynasmApi;
 use crate::Process;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WowCheats {
     wow_process: Process,
     frame_script_execute: usize,
@@ -13,7 +13,8 @@ impl WowCheats {
     pub unsafe fn new(end_scene_ptr: usize) -> Self {
         Self { wow_process: Process::find("Wow.exe"), frame_script_execute: 0x819210, end_scene_ptr}
     }
-    pub unsafe fn second_run_string(&self, script_to_run: &str) {
+    pub unsafe fn second_run_string(&self, old_script_to_run: &str) {
+        let script_to_run = old_script_to_run.replace("PQR", "dx9");
         // Allocate an area in memory for our return value
         let did_func_run_alloc = self.wow_process.create_alloc_ex(0x1000).unwrap();
         // Allocate memory for our shellcode

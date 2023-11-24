@@ -1,7 +1,7 @@
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, Thread32First, Thread32Next, THREADENTRY32};
 use windows::Win32::System::Threading::{OpenThread, ResumeThread, SuspendThread, THREAD_ALL_ACCESS};
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProcessThreads {
     process_id: u32
 }

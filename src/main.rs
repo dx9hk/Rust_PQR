@@ -14,6 +14,7 @@ use egui_extras;
 use crate::d3d9::d3d9::D3d9;
 use crate::process::process_lib::Process;
 use crate::profiles::abilities_tab::AbilitiesEnum;
+use crate::profiles::profile_options::ProfileOptions;
 use crate::profiles::profiles_lib::Profiles;
 use crate::profiles::profiles_tab::ProfilesEnum;
 use crate::wow::pqr_important::initialise_bot;
@@ -21,21 +22,11 @@ use crate::wow::wow_hook::WowCheats;
 use crate::xml_library::xml_handler::{extract_abilities_name_from_rotation, extract_lua_from_ability, load_abilities_from_xml, load_rotations_from_xml};
 
 fn main() {
-    let wow_process = unsafe { Process::find("Wow.exe") };
-    let our_process = unsafe { Process::find("rust_wow.exe") };
-
-    let wow_d3d9_dll = unsafe { &wow_process.get_modules()["d3d9.dll"] };
-    let our_d3d9_dll = unsafe { &our_process.get_modules()["d3d9.dll"] };
-    println!("{wow_d3d9_dll:#X?}");
-    println!("{our_d3d9_dll:#X?}");
-
     let our_d3d9 = unsafe { D3d9::new() };
     let endscene_ptr = our_d3d9.get_endscene();
-    //println!("{endscene_ptr:#X?}");
-
     let wow_cheat = unsafe { WowCheats::new(endscene_ptr as usize) };
-
     let profiles_test = Profiles::new(PathBuf::from(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles"));
+    let mut profile_options = ProfileOptions::default();
 
     let mut my_profile_enum = ProfilesEnum::Title("default".to_string());
     let mut stored_current_profile_name = "default".to_string();
@@ -114,8 +105,19 @@ fn main() {
                     ui.add_space(7.);
                     //ui.button("Save changes");
                     if ui.button("Run Profile").clicked() {
-                        initialise_bot(wow_cheat.clone(), last_stored_rotation_list.clone(), last_stored_ability_list.clone());
+                        initialise_bot(wow_cheat.clone(), last_stored_rotation_list.clone(), last_stored_ability_list.clone(), profile_options.clone());
                     }
+                    ui.horizontal_wrapped(|ui| {
+                        ui.checkbox(&mut profile_options.show_chat, "Show Chat");
+                        ui.checkbox(&mut profile_options.enable_debug, "Debug mode");
+                        ui.checkbox(&mut profile_options.require_combat, "Require combat");
+                        ui.checkbox(&mut profile_options.enable_interrupt, "Enable Interrupt");
+                        ui.end_row();
+                        ui.add(egui::Slider::new(&mut profile_options.refresh_rate,  0.1..=1000.).text("Refresh rate"));
+                        ui.end_row();
+                        ui.add(egui::Slider::new(&mut profile_options.interrupt_delay,  0.0..=1000.).text("Interrupt delay"));
+                    });
+
                     ui.add_space(7.);
                 });
 
