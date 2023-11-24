@@ -1,4 +1,4 @@
-
+use std::ffi::CString;
 use std::path::PathBuf;
 use windows::core::{ComInterface, PCSTR, w};
 use windows::Win32::Data::Xml::XmlLite::{CreateXmlReader, IXmlReader, XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit, XmlNodeType_None, XmlNodeType_Element, XmlNodeType_Attribute, XmlNodeType_Text, XmlNodeType_EndElement};
@@ -6,7 +6,7 @@ use windows::Win32::Foundation::S_OK;
 use windows::Win32::System::Com::STGM_READ;
 use windows::Win32::UI::Shell::SHCreateStreamOnFileA;
 
-const PROFILE_SIZE: usize = 1024;
+pub const PROFILE_SIZE: usize = 1024;
 // Decode xml input
 pub fn decode_xml(xml_input: String) -> String {
     xml_input
@@ -109,12 +109,12 @@ pub fn translate_ability_to_xml(player_class: &str, ability_array: Vec<Vec<&str>
 pub unsafe fn load_rotations_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
     let mut return_vec: Vec<Vec<String>> = vec![vec![String::default(); 5]; PROFILE_SIZE];
     let mut xml_text_reader: Option<IXmlReader> = None;
-
     // Initialise our xml file
-    let str_path = PCSTR::from_raw(xml_file.to_str().unwrap().as_bytes().as_ptr());
-    println!("{:#?}", str_path.to_string().unwrap().as_str());
+    //let str_path = PCSTR::from_raw(xml_file.to_str().unwrap().as_bytes().as_ptr());
+    let str_path = CString::new(xml_file.to_str().unwrap()).unwrap();
+    println!("{:#?}", str_path.to_str().unwrap());
     let file_stream = SHCreateStreamOnFileA(
-        str_path,
+        PCSTR::from_raw(str_path.as_bytes().as_ptr()),
         STGM_READ.0
     ).unwrap();
     // Create Xml reader
@@ -128,66 +128,68 @@ pub unsafe fn load_rotations_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
     xml_text_reader.SetInput(&file_stream).unwrap();
 
     // Store reads
-    let mut element_string = w!("");
-    let mut element_value = w!("");
+    let mut w_element_string = w!("");
+    let mut element_string= String::default();
+    let mut w_element_string_len = 0;
+    let mut w_element_value = w!("");
+    let mut element_value = String::default();
+    let mut w_element_value_len = 0;
     // Store xml input strings
-    let mut rotation_name = w!("");
-    let mut rotation_default = w!("");
-    let mut rotation_list = w!("");
-    let mut require_combat = w!("");
-    let mut rotation_notes = w!("");
+    let mut rotation_name = String::default();
+    let mut rotation_default = String::default();
+    let mut rotation_list = String::default();
+    let mut require_combat = String::default();
+    let mut rotation_notes = String::default();
 
     // Loop through all nodes
     let mut node_type = XmlNodeType_None;
+    // Get abbreviated profile name
+    let abbreviated_profile_name = xml_file.to_str().unwrap().to_string().rsplit('\\').next().unwrap_or("").split('_').next().unwrap_or("").to_string();
     while xml_text_reader.Read(Some(&mut node_type)).0 == S_OK.0
     {
         match node_type {
             XmlNodeType_Element => {
-                xml_text_reader.GetLocalName(&mut element_string, None).unwrap();
+                xml_text_reader.GetLocalName(&mut w_element_string, Some(&mut w_element_string_len)).unwrap();
+                element_string = String::from_utf16_lossy(std::slice::from_raw_parts(w_element_string.0, w_element_string_len as usize));
             },
             XmlNodeType_Attribute => { },
             XmlNodeType_Text => {
-                xml_text_reader.GetValue(&mut element_value, None).unwrap();
-                if element_string.to_string().unwrap() == "RotationName".to_string() {
-                    rotation_name = element_value;
-                }
-                else if element_string.to_string().unwrap() == "RotationDefault" {
-                    rotation_default = element_value;
-                }
-                else if element_string.to_string().unwrap() == "RotationList" {
-                    rotation_list = element_value;
-                }
-                else if element_string.to_string().unwrap() == "RequireCombat" {
-                    require_combat = element_value;
-                }
-                else if element_string.to_string().unwrap() == "RotationNotes" {
-                    rotation_notes = element_value;
+                xml_text_reader.GetValue(&mut w_element_value, Some(&mut w_element_value_len)).unwrap();
+                element_value = String::from_utf16_lossy(std::slice::from_raw_parts(w_element_value.0, w_element_value_len as usize));
+                match element_string.to_string().as_str() {
+                    "RotationName" => rotation_name = element_value,
+                    "RotationDefault" => rotation_default = element_value,
+                    "RotationList" => rotation_list = element_value,
+                    "RequireCombat" => require_combat = element_value,
+                    "RotationNotes" => rotation_notes = element_value,
+                    _ => {},
                 }
             },
             XmlNodeType_EndElement => {
-                xml_text_reader.GetLocalName(&mut element_value, None).unwrap();
-                if element_value.to_string().unwrap() == "Rotation" && !rotation_name.to_string().unwrap().is_empty() && !rotation_default.to_string().unwrap().is_empty() {
+                xml_text_reader.GetLocalName(&mut w_element_value, Some(&mut w_element_value_len)).unwrap();
+                element_value = String::from_utf16_lossy(std::slice::from_raw_parts(w_element_value.0, w_element_value_len as usize));
+                if element_value == "Rotation".to_string() && !rotation_name.is_empty() && !rotation_default.is_empty() {
                     for i in 0..PROFILE_SIZE {
                         if return_vec[i][0].is_empty() {
-                            return_vec[i][0] = decode_xml(rotation_name.to_string().unwrap()) + " (SNPSubt)";
-                            return_vec[i][1] = decode_xml(rotation_default.to_string().unwrap());
-                            return_vec[i][2] = decode_xml(rotation_list.to_string().unwrap());
-                            return_vec[i][2] = return_vec[i][2].replace("|", " (SNPSubt)|");
-                            return_vec[i][2] = return_vec[i][2].clone() + " (SNPSubt)";
-                            return_vec[i][3] = decode_xml(require_combat.to_string().unwrap());
-                            return_vec[i][4] = decode_xml(rotation_notes.to_string().unwrap());
-                            rotation_name = w!("");
-                            rotation_list = w!("");
-                            rotation_default = w!("");
-                            require_combat = w!("true");
-                            rotation_notes = w!("");
+                            return_vec[i][0] = decode_xml(rotation_name.clone()) + format!(" ({abbreviated_profile_name})").as_str();
+                            return_vec[i][1] = decode_xml(rotation_default.clone());
+                            return_vec[i][2] = decode_xml(rotation_list.clone());
+                            return_vec[i][2] = return_vec[i][2].replace("|", format!(" ({abbreviated_profile_name})|").as_str());
+                            return_vec[i][2] = return_vec[i][2].clone() + format!(" ({abbreviated_profile_name})").as_str();
+                            return_vec[i][3] = decode_xml(require_combat.clone());
+                            return_vec[i][4] = decode_xml(rotation_notes.clone());
+                            rotation_name = String::default();
+                            rotation_list = String::default();
+                            rotation_default = String::default();
+                            require_combat = "true".to_string();
+                            rotation_notes = "".to_string();
 
                             break;
                         }
                     }
                 }
             },
-            other => { if node_type.0 == 0 { break } }
+            _ => { }
         }
     }
     return_vec
@@ -197,9 +199,11 @@ pub unsafe fn load_abilities_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
     let mut return_vec: Vec<Vec<String>> = vec![vec![String::default(); 10]; PROFILE_SIZE];
     let mut xml_text_reader: Option<IXmlReader> = None;
     // Initialise our xml file
-    let str_path = PCSTR::from_raw(xml_file.to_str().unwrap().as_bytes().as_ptr());
+    //let str_path = PCSTR::from_raw(xml_file.to_str().unwrap().as_bytes().as_ptr());
+    let str_path = CString::new(xml_file.to_str().unwrap()).unwrap();
+    println!("{:#?}", str_path.to_str().unwrap());
     let file_stream = SHCreateStreamOnFileA(
-        str_path,
+        PCSTR::from_raw(str_path.as_bytes().as_ptr()),
         STGM_READ.0
     ).unwrap();
     // Create Xml reader
@@ -232,6 +236,8 @@ pub unsafe fn load_abilities_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
 
     // Loop through all nodes
     let mut node_type = XmlNodeType_None;
+    // Get abbreviated profile name
+    let abbreviated_profile_name = xml_file.to_str().unwrap().to_string().rsplit('\\').next().unwrap_or("").split('_').next().unwrap_or("").to_string();
     while xml_text_reader.Read(Some(&mut node_type)).0 == S_OK.0
     {
         match node_type {
@@ -276,7 +282,7 @@ pub unsafe fn load_abilities_from_xml(xml_file: PathBuf) -> Vec<Vec<String>> {
                     !ability_lua.is_empty() {
                     for i in 0..PROFILE_SIZE {
                         if return_vec[i][0].is_empty() {
-                            return_vec[i][0] = decode_xml(ability_name) + " (SNPSubt)";
+                            return_vec[i][0] = decode_xml(ability_name) + format!(" ({abbreviated_profile_name})").as_str();
                             return_vec[i][1] = decode_xml(ability_default);
                             return_vec[i][2] = decode_xml(ability_spellid);
                             return_vec[i][3] = decode_xml(ability_actions);

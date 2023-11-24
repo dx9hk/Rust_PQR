@@ -5,12 +5,10 @@ pub mod wow;
 pub mod xml_library;
 pub mod profiles;
 
-use std::ops::Index;
 use std::path::PathBuf;
-use std::thread::current;
 use std::usize;
 use eframe::egui;
-use egui::{Vec2, Widget};
+use egui::Vec2;
 use egui_extras;
 
 use crate::d3d9::d3d9::D3d9;
@@ -18,8 +16,9 @@ use crate::process::process_lib::Process;
 use crate::profiles::abilities_tab::AbilitiesEnum;
 use crate::profiles::profiles_lib::Profiles;
 use crate::profiles::profiles_tab::ProfilesEnum;
+use crate::wow::pqr_important::initialise_bot;
 use crate::wow::wow_hook::WowCheats;
-use crate::xml_library::xml_handler::{extract_abilities_name_from_rotation, extract_lua_from_ability, load_abilities_from_xml};
+use crate::xml_library::xml_handler::{extract_abilities_name_from_rotation, extract_lua_from_ability, load_abilities_from_xml, load_rotations_from_xml};
 
 fn main() {
     let wow_process = unsafe { Process::find("Wow.exe") };
@@ -40,8 +39,11 @@ fn main() {
 
     let mut my_profile_enum = ProfilesEnum::Title("default".to_string());
     let mut stored_current_profile_name = "default".to_string();
+    let mut stored_current_profile_abilities = PathBuf::default();
+    let mut stored_current_profile_rotations = PathBuf::default();
     let mut my_abilities_enum = AbilitiesEnum::Title("default".to_string());
     let mut last_stored_ability_list = vec![];
+    let mut last_stored_rotation_list = vec![];
 
     let menu_options = eframe::NativeOptions {
         initial_window_size: Some(Vec2::new(600.0, 330.0)),
@@ -50,7 +52,7 @@ fn main() {
         ..Default::default()
     };
     let mut test_str = String::from("");
-    let _ = eframe::run_simple_native("World of Warcraft Executor", menu_options, move |ctx, frame | {
+    let _ = eframe::run_simple_native("pqr_rs", menu_options, move |ctx, frame | {
         egui::SidePanel::left("Profiles panel")
             .max_width(140.)
             .resizable(false)
@@ -67,8 +69,11 @@ fn main() {
                         let current_enum = ProfilesEnum::Title(current_profile_name.clone());
                         if ui.add_sized([ui.available_width(), 0.], egui::SelectableLabel::new(my_profile_enum == current_enum, current_profile_name.clone())).clicked() {
                             stored_current_profile_name = current_profile_name.clone();
+                            stored_current_profile_abilities = current_profile.clone().get_abilities_path();
+                            stored_current_profile_rotations = current_profile.clone().get_rotation_path();
                             my_profile_enum = current_enum;
                             last_stored_ability_list = vec![];
+                            last_stored_rotation_list = vec![];
                         }
                     });
             });
@@ -83,7 +88,8 @@ fn main() {
                 .show(ui, |ui| unsafe {
                     if stored_current_profile_name != "default".to_string() {
                         if last_stored_ability_list.is_empty() {
-                            last_stored_ability_list = load_abilities_from_xml(PathBuf::from(format!(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles\{stored_current_profile_name}\79 Subt_ROGUE_Abilities.xml")));
+                            last_stored_ability_list = load_abilities_from_xml(stored_current_profile_abilities.clone());
+                            last_stored_rotation_list = load_rotations_from_xml(stored_current_profile_rotations.clone());
                         }
                         last_stored_ability_list.iter().for_each(|ability| {
                             let ability_name = extract_abilities_name_from_rotation(ability.clone());
@@ -104,10 +110,12 @@ fn main() {
             .max_height(140.)
             //.resizable(false)
             .show(ctx, |ui| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::Center), |ui| unsafe {
                     ui.add_space(7.);
                     //ui.button("Save changes");
-                    ui.button("Run Profile");
+                    if ui.button("Run Profile").clicked() {
+                        initialise_bot(wow_cheat.clone(), last_stored_rotation_list.clone(), last_stored_ability_list.clone());
+                    }
                     ui.add_space(7.);
                 });
 
