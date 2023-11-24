@@ -10,9 +10,11 @@ pub struct WowCheats {
 }
 
 impl WowCheats {
+    /// Construct struct from end scene ptr
     pub unsafe fn new(end_scene_ptr: usize) -> Self {
         Self { wow_process: Process::find("Wow.exe"), frame_script_execute: 0x819210, end_scene_ptr}
     }
+    /// Call Framescript_Execute externally via a simple detour
     pub unsafe fn second_run_string(&self, old_script_to_run: &str) {
         let script_to_run = old_script_to_run.replace("PQR", "dx9");
         // Allocate an area in memory for our return value

@@ -13,10 +13,15 @@ pub struct Profile {
 }
 
 impl Profile {
+    /// Gets profile name
     pub fn get_profile_name(&self) -> String { self.profile_name.clone() }
+    /// Gets profile path
     pub fn get_profile_path(&self) -> PathBuf { self.profile_path.clone() }
+    /// Gets rotation path
     pub fn get_rotation_path(&self) -> PathBuf { self.rotation_path.clone() }
+    /// Gets abilities path
     pub fn get_abilities_path(&self) -> PathBuf { self.abilities_path.clone() }
+    /// Default constructor
     pub fn default() -> Self {
         Self {
             profile_name: String::default(),
@@ -25,6 +30,7 @@ impl Profile {
             abilities_path: PathBuf::default()
         }
     }
+    /// Construct to input path to profile folder
     pub fn new(profile_path: PathBuf) -> Self {
         // Do basic dir checks
         if !profile_path.is_dir() {

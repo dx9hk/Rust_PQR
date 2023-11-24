@@ -7,6 +7,7 @@ pub struct Profiles {
 }
 
 impl Profiles {
+    /// Construct from profiles folder
     pub fn new(profiles_folder: PathBuf) -> Self {
         // Check if valid directory
         if !profiles_folder.is_dir() {
@@ -27,5 +28,6 @@ impl Profiles {
             list_of_profiles: return_vector
         }
     }
+    /// Return profiles
     pub fn get_profiles(&self) -> &Vec<Profile> { &self.list_of_profiles }
 }

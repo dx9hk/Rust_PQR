@@ -26,6 +26,7 @@ pub struct ProfileOptions {
 }
 
 impl ProfileOptions {
+    /// Default constructor for Profile Options
     pub fn default() -> Self {
         Self {
             show_chat: false,
@@ -41,7 +42,8 @@ impl ProfileOptions {
             change_rotation: false,
         }
     }
-    pub fn new(// Should chat be shown?
+    /// Constructor for every value within struct
+    pub fn new(
                show_chat: bool,
                enable_debug: bool,
                require_combat: bool,

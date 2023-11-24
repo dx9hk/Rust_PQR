@@ -9,7 +9,7 @@ pub struct D3d9 {
 }
 
 impl D3d9 {
-    /// Constructor to initialise an empty vector
+    /// Constructor to create a dummy device and assign vtable
     pub unsafe fn new() -> Self {
         let d3d9 = Direct3DCreate9(D3D_SDK_VERSION).unwrap();
         let p_dummy_device: *mut IDirect3DDevice9 = std::ptr::null_mut();
@@ -48,6 +48,7 @@ impl D3d9 {
             false => Self {d3d9_vtable: v}
         }
     }
+    /// Return endscene via index
     pub fn get_endscene(&self) -> *const usize {
         self.d3d9_vtable[42]
     }
