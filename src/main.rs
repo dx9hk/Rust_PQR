@@ -27,7 +27,6 @@ fn main() {
     let wow_cheat = unsafe { WowCheats::new(endscene_ptr as usize) };
     let profiles_test = Profiles::new(PathBuf::from(r"C:\Users\sohai\RustroverProjects\rust_wow\target\debug\Profiles"));
     let mut profile_options = ProfileOptions::default();
-
     let mut my_profile_enum = ProfilesEnum::Title("default".to_string());
     let mut stored_current_profile_name = "default".to_string();
     let mut stored_current_profile_abilities = PathBuf::default();

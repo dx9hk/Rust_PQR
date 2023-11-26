@@ -1,3 +1,4 @@
+
 use dynasmrt::dynasm;
 use dynasmrt::DynasmApi;
 use crate::Process;
@@ -5,6 +6,7 @@ use crate::Process;
 #[derive(Debug, Clone)]
 pub struct WowCheats {
     wow_process: Process,
+    orig_frame_script_execute: usize,
     frame_script_execute: usize,
     end_scene_ptr: usize,
 }
@@ -12,15 +14,22 @@ pub struct WowCheats {
 impl WowCheats {
     /// Construct struct from end scene ptr
     pub unsafe fn new(end_scene_ptr: usize) -> Self {
-        Self { wow_process: Process::find("Wow.exe"), frame_script_execute: 0x819210, end_scene_ptr}
+        Self { wow_process: Process::find("Wow.exe"), orig_frame_script_execute: 0x819210, end_scene_ptr, frame_script_execute: 0x0}
     }
     /// Call Framescript_Execute externally via a simple detour
-    pub unsafe fn second_run_string(&self, old_script_to_run: &str) {
+    pub unsafe fn second_run_string(&mut self, old_script_to_run: &str) {
+        if self.frame_script_execute == 0x0 {
+            /*
+            // Set it to cloned func
+            self.frame_script_execute = self.wow_process.clone_func(self.orig_frame_script_execute);
+             */
+            self.frame_script_execute = self.orig_frame_script_execute;
+        }
         let script_to_run = old_script_to_run.replace("PQR", "dx9");
         // Allocate an area in memory for our return value
         let did_func_run_alloc = self.wow_process.create_alloc_ex(0x1000).unwrap();
         // Allocate memory for our shellcode
-        let shellcode_alloc = self.wow_process.create_alloc_ex(0x200).unwrap();
+        let shellcode_alloc = self.wow_process.create_alloc_ex(0x1000).unwrap();
         // Allocate memory for our string
         let string_alloc = self.wow_process.create_alloc_ex(script_to_run.len()).unwrap();
         // Write our string to our alloc

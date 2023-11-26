@@ -187,4 +187,63 @@ impl Process {
         // Return old bytes :-)
         old_bytes
     }
+    /// Attempt to parse a function into bytes
+    pub unsafe fn get_func_bytes(&self, address_to_parse: usize) -> Vec<u8> {
+        let mut return_bytes: Vec<u8> = Vec::new();
+        // Read every byte until 0xC3
+        let mut inc = 0;
+        loop {
+            let curr_byte_to_read = address_to_parse + inc;
+            let curr_byte = self.read::<u8>(curr_byte_to_read).unwrap();
+            // Push to return vec
+            //return_bytes.push(curr_byte);
+            match curr_byte.clone() {
+                0xE8 => {
+                    // Check if previous byte is in ignore list
+                    if return_bytes.last().unwrap().clone() == 0x83 {
+                        return_bytes.push(curr_byte);
+                        inc+=1;
+                    }
+                    else {
+                        // Relative jmp/call
+                        // Read four bytes after first inst
+                        let call_rva = self.read::<usize>(curr_byte_to_read + 0x1).unwrap();
+                        // Get the absolute by using wrapping since we're on x86
+                        let call_absolute = call_rva.wrapping_add(curr_byte_to_read.wrapping_add(0x5));
+                        // Assemble an absolute call
+                        let mut new_call = dynasmrt::x86::Assembler::new().unwrap();
+                        dynasm!(new_call
+                            ; .arch x86
+                            ; mov edx, call_absolute as _
+                            ; call edx
+                        );
+                        // Push absolute call bytes onto the return bytes vector
+                        return_bytes.extend_from_slice(&new_call.finalize().unwrap().to_vec());
+                        // Skip the E8 00000000
+                        inc += 5;
+                    }
+                }
+                0xC3 => {
+                    return_bytes.push(curr_byte.clone());
+                    return return_bytes;
+                },
+                _ => {
+                    return_bytes.push(curr_byte.clone());
+                    inc+=1;
+                },
+            }
+        }
+    }
+    /// Clone a func from bytes to a new allocation
+    pub unsafe fn clone_func(&self, address_to_clone: usize) -> usize {
+        // Create allocation
+        let cloned_func_alloc = self.create_alloc_ex(0x1000).unwrap();
+        println!("{cloned_func_alloc:#X}");
+        // Get func bytes
+        let func_bytes = self.get_func_bytes(address_to_clone);
+        // Write bytes to alloc
+        self.write_bytes(cloned_func_alloc, func_bytes.as_slice()).unwrap();
+        // Return func to user
+        cloned_func_alloc
+    }
 }
